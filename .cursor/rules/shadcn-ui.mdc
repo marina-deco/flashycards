@@ -1,0 +1,62 @@
+---
+alwaysApply: true
+---
+# shadcn/ui Usage
+
+This project uses **shadcn/ui** for all UI elements.
+
+## Configuration
+
+shadcn/ui is configured with:
+- Style: New York
+- Base color: Neutral
+- Icon library: lucide-react
+- Components location: `src/components/ui/`
+- Config file: [components.json](mdc:components.json)
+- Utils helper: [src/lib/utils.ts](mdc:src/lib/utils.ts)
+
+## Adding Components
+
+If shadcn/ui is not initialized in the project, use:
+```bash
+npx shadcn@latest init --defaults
+```
+
+To add a specific component (e.g., button):
+```bash
+npx shadcn@latest add button
+```
+
+Common components to add as needed:
+- `button` - Button component
+- `card` - Card component
+- `input` - Input field component
+- `label` - Label component
+- `dialog` - Dialog/Modal component
+- `dropdown-menu` - Dropdown menu component
+- `select` - Select component
+- `textarea` - Textarea component
+- `toast` - Toast notification component
+- `form` - Form components with validation
+
+## Usage Guidelines
+
+1. **Always use shadcn/ui components** for UI elements instead of creating custom ones
+2. **Import from the ui directory**: `import { Button } from "@/components/ui/button"`
+3. **Use the cn() utility** from `@/lib/utils` for className merging
+4. **Install components before using them** - check if the component exists in `src/components/ui/` first
+
+## Example
+
+```tsx
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+
+export function MyComponent() {
+  return (
+    <Button className={cn("custom-class")}>
+      Click me
+    </Button>
+  )
+}
+```

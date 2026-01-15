@@ -1,0 +1,51 @@
+---
+alwaysApply: true
+---
+
+# Database Interactions with Drizzle ORM
+
+This project uses **Drizzle ORM** for all database operations.
+
+## Database Configuration
+
+- Database connection: [src/db/index.ts](mdc:src/db/index.ts)
+- Schema definitions: [src/db/schema.ts](mdc:src/db/schema.ts)
+- Database provider: Neon (PostgreSQL)
+
+## Required Guidelines
+
+1. **Always use the Drizzle schema** defined in [src/db/schema.ts](mdc:src/db/schema.ts)
+2. **Import the db instance** from [src/db/index.ts](mdc:src/db/index.ts)
+3. **Use Drizzle query syntax** - never write raw SQL queries
+4. **Import table schemas** when performing operations on specific tables
+
+## Example Usage
+
+```typescript
+import { db } from "@/db/index"
+import { decks, cards } from "@/db/schema"
+import { eq } from "drizzle-orm"
+
+// Select query
+const allDecks = await db.select().from(decks)
+
+// Insert query
+const newDeck = await db.insert(decks).values({
+  userId: "user123",
+  name: "My Deck",
+  description: "A sample deck"
+}).returning()
+
+// Update query
+await db.update(decks)
+  .set({ name: "Updated Name" })
+  .where(eq(decks.id, 1))
+
+// Delete query
+await db.delete(cards).where(eq(cards.deckId, 1))
+```
+
+## Available Tables
+
+- **decks**: User flashcard decks
+- **cards**: Individual flashcards within decks

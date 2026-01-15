@@ -1,0 +1,135 @@
+---
+alwaysApply: true
+---
+# Clerk Authentication & Data Security
+
+This project uses **Clerk** for all authentication and user management.
+
+## Critical Security Requirements
+
+**USERS MUST ONLY ACCESS THEIR OWN DATA** - Always filter database queries by the authenticated user's ID.
+
+## Authentication Setup
+
+- Middleware: [src/middleware.ts](mdc:src/middleware.ts) - Clerk middleware protects all routes
+- User ID storage: All user-owned data tables have a `userId` field matching Clerk's user ID
+- Database schema: [src/db/schema.ts](mdc:src/db/schema.ts)
+
+## Required Guidelines
+
+### 1. Always Get the Current User
+
+```typescript
+import { auth } from "@clerk/nextjs/server"
+
+// In Server Components or API routes
+const { userId } = await auth()
+
+if (!userId) {
+  // Handle unauthorized access
+  return new Response("Unauthorized", { status: 401 })
+}
+```
+
+### 2. Always Filter by User ID
+
+**NEVER** query data without filtering by the authenticated user's ID:
+
+```typescript
+import { db } from "@/db/index"
+import { decks, cards } from "@/db/schema"
+import { eq, and } from "drizzle-orm"
+import { auth } from "@clerk/nextjs/server"
+
+// ✅ CORRECT - Filtered by userId
+const { userId } = await auth()
+const userDecks = await db.select()
+  .from(decks)
+  .where(eq(decks.userId, userId))
+
+// ✅ CORRECT - Check ownership before accessing related data
+const deck = await db.select()
+  .from(decks)
+  .where(and(
+    eq(decks.id, deckId),
+    eq(decks.userId, userId)
+  ))
+  .limit(1)
+
+// ❌ WRONG - No user filter, security vulnerability
+const allDecks = await db.select().from(decks)
+```
+
+### 3. Verify Ownership for Nested Resources
+
+When accessing cards, verify the parent deck belongs to the user:
+
+```typescript
+// ✅ CORRECT - Verify deck ownership first
+const [deck] = await db.select()
+  .from(decks)
+  .where(and(
+    eq(decks.id, deckId),
+    eq(decks.userId, userId)
+  ))
+
+if (!deck) {
+  return new Response("Not found", { status: 404 })
+}
+
+// Now safe to query cards for this deck
+const deckCards = await db.select()
+  .from(cards)
+  .where(eq(cards.deckId, deckId))
+```
+
+### 4. Insert Operations
+
+Always include userId when creating new records:
+
+```typescript
+// ✅ CORRECT
+const newDeck = await db.insert(decks).values({
+  userId: userId, // Always include
+  name: "My Deck",
+  description: "A sample deck"
+}).returning()
+```
+
+### 5. Update/Delete Operations
+
+Always verify ownership before modifying data:
+
+```typescript
+// ✅ CORRECT
+await db.update(decks)
+  .set({ name: "Updated Name" })
+  .where(and(
+    eq(decks.id, deckId),
+    eq(decks.userId, userId) // Verify ownership
+  ))
+
+// ✅ CORRECT
+await db.delete(decks)
+  .where(and(
+    eq(decks.id, deckId),
+    eq(decks.userId, userId) // Verify ownership
+  ))
+```
+
+## Security Checklist
+
+Before any database operation:
+- [ ] Have you obtained the userId from `auth()`?
+- [ ] Have you checked if userId exists (user is authenticated)?
+- [ ] Are you filtering by userId for user-owned tables?
+- [ ] For nested resources, have you verified parent ownership?
+- [ ] Are you including userId when creating new records?
+
+## Common Mistakes to Avoid
+
+❌ Trusting client-provided user IDs
+❌ Querying without userId filter
+❌ Accepting resource IDs from URL without ownership verification
+❌ Using userId from request body instead of auth()
+❌ Forgetting to check authentication before database operations
