@@ -1,0 +1,262 @@
+---
+alwaysApply: true
+---
+
+# Clerk Billing Integration
+
+This project uses **Clerk Billing** for subscription management and payments for individual users (B2C SaaS).
+
+## Available Plans
+
+This application has the following subscription plans:
+
+- `free_user` - Free tier with limited features
+- `pro` - Pro tier with full access
+
+## Available Features
+
+This application has the following features that can be assigned to plans:
+
+- `3_deck_limit` - Restricts users to creating maximum 3 decks
+- `unlimited_decks` - Allows users to create unlimited decks
+- `ai_flashcard_generation` - Enables AI-powered flashcard generation
+
+## Plan-Feature Mapping
+
+**Expected Configuration:**
+- `free_user` plan should have: `3_deck_limit`
+- `pro` plan should have: `unlimited_decks`, `ai_flashcard_generation`
+
+## Protecting Content with Plans and Features
+
+### Method 1: Using `has()` (Server-Side)
+
+The `has()` method is available on the `auth` object and checks if a user has access to a specific Plan or Feature.
+
+#### Check for Plan Access
+
+```tsx
+import { auth } from '@clerk/nextjs/server'
+
+export default async function PremiumPage() {
+  const { has } = await auth()
+  
+  const hasProPlan = has({ plan: 'pro' })
+  
+  if (!hasProPlan) {
+    return <div>You need a Pro plan to access this content.</div>
+  }
+  
+  return <div>Pro content here</div>
+}
+```
+
+#### Check for Feature Access
+
+```tsx
+import { auth } from '@clerk/nextjs/server'
+
+export default async function AIGenerationPage() {
+  const { has } = await auth()
+  
+  const hasAIFeature = has({ feature: 'ai_flashcard_generation' })
+  
+  if (!hasAIFeature) {
+    return <div>Upgrade to Pro to use AI flashcard generation.</div>
+  }
+  
+  return <div>AI generation UI here</div>
+}
+```
+
+### Method 2: Using `<Protect>` Component
+
+The `<Protect>` component is used for client-side and server-side rendering to conditionally show content based on access control.
+
+#### Protect by Plan
+
+```tsx
+import { Protect } from '@clerk/nextjs'
+
+export default function PremiumFeature() {
+  return (
+    <Protect
+      plan="pro"
+      fallback={<p>Upgrade to Pro to access this feature.</p>}
+    >
+      <div>Premium feature content</div>
+    </Protect>
+  )
+}
+```
+
+#### Protect by Feature
+
+```tsx
+import { Protect } from '@clerk/nextjs'
+
+export function AIGenerationButton() {
+  return (
+    <Protect
+      feature="ai_flashcard_generation"
+      fallback={
+        <Button disabled>
+          AI Generation (Pro Only)
+        </Button>
+      }
+    >
+      <Button onClick={handleAIGeneration}>
+        Generate with AI
+      </Button>
+    </Protect>
+  )
+}
+```
+
+## Common Use Cases
+
+### 1. Limiting Deck Creation
+
+Check the deck limit before allowing users to create new decks:
+
+```tsx
+// In Server Component or Server Action
+import { auth } from '@clerk/nextjs/server'
+import { getUserDecks } from '@/db/queries/deck-queries'
+
+export async function createDeckAction(input: CreateDeckInput) {
+  const { userId, has } = await auth()
+  
+  if (!userId) throw new Error("Unauthorized")
+  
+  // Check if user has unlimited decks feature
+  const hasUnlimitedDecks = has({ feature: 'unlimited_decks' })
+  
+  if (!hasUnlimitedDecks) {
+    // Check if they've hit the 3 deck limit
+    const userDecks = await getUserDecks(userId)
+    
+    if (userDecks.length >= 3) {
+      throw new Error("Free users are limited to 3 decks. Upgrade to Pro for unlimited decks.")
+    }
+  }
+  
+  // Proceed with deck creation
+  const newDeck = await createDeck({ userId, ...input })
+  return newDeck
+}
+```
+
+### 2. Showing Upgrade Prompts in UI
+
+```tsx
+import { auth } from '@clerk/nextjs/server'
+import { getUserDecks } from '@/db/queries/deck-queries'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import Link from 'next/link'
+
+export default async function DashboardPage() {
+  const { userId, has } = await auth()
+  const decks = await getUserDecks(userId!)
+  
+  const hasUnlimitedDecks = has({ feature: 'unlimited_decks' })
+  const isAtDeckLimit = !hasUnlimitedDecks && decks.length >= 3
+  
+  return (
+    <div>
+      {isAtDeckLimit && (
+        <Card className="p-4 mb-4 border-yellow-500">
+          <p>You've reached the free plan limit of 3 decks.</p>
+          <Link href="/pricing">
+            <Button>Upgrade to Pro</Button>
+          </Link>
+        </Card>
+      )}
+      
+      <Button disabled={isAtDeckLimit}>
+        Create New Deck
+      </Button>
+    </div>
+  )
+}
+```
+
+### 3. Conditionally Showing AI Features
+
+```tsx
+import { Protect } from '@clerk/nextjs'
+import { Button } from '@/components/ui/button'
+
+export function CardCreationForm() {
+  return (
+    <div>
+      <Input placeholder="Front of card" />
+      <Input placeholder="Back of card" />
+      
+      <Protect
+        feature="ai_flashcard_generation"
+        fallback={
+          <div className="text-muted-foreground text-sm">
+            AI generation available with Pro plan
+          </div>
+        }
+      >
+        <Button variant="secondary">
+          Generate with AI
+        </Button>
+      </Protect>
+    </div>
+  )
+}
+```
+
+## Pricing Page
+
+Create a dedicated pricing page using the `<PricingTable />` component:
+
+```tsx
+// app/pricing/page.tsx
+import { PricingTable } from '@clerk/nextjs'
+
+export default function PricingPage() {
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-8">Choose Your Plan</h1>
+      <PricingTable />
+    </div>
+  )
+}
+```
+
+## Best Practices
+
+1. **Always check access server-side** - Use `has()` in Server Components and Server Actions to enforce access control
+2. **Use `<Protect>` for UI** - Use the component to conditionally render UI elements
+3. **Show upgrade prompts** - When users hit limits, show clear upgrade CTAs
+4. **Validate in Server Actions** - Always validate plan/feature access before performing mutations
+5. **Handle gracefully** - Provide clear error messages when users don't have access
+
+## Required Checklist for Billing
+
+- [ ] Feature/Plan access is checked server-side with `has()`
+- [ ] UI elements are protected with `<Protect>` component
+- [ ] Server Actions validate billing access before mutations
+- [ ] Upgrade prompts are shown when users hit limits
+- [ ] Error messages clearly explain billing restrictions
+
+## What NOT to Do
+
+❌ Checking billing access only on the client-side
+❌ Allowing protected actions without server-side validation
+❌ Using hard-coded plan names that don't match Clerk Dashboard
+❌ Forgetting to handle the case when users don't have access
+❌ Not showing upgrade CTAs when users hit limits
+
+## What TO Do
+
+✅ Use `has()` in Server Components and Server Actions
+✅ Use `<Protect>` component for conditional UI rendering
+✅ Match plan and feature names exactly as configured in Clerk Dashboard
+✅ Provide clear upgrade paths with links to `/pricing`
+✅ Show helpful messages explaining why content is restricted

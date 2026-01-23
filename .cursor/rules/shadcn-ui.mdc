@@ -5,6 +5,18 @@ alwaysApply: true
 
 This project uses **shadcn/ui** for all UI elements.
 
+## CRITICAL RULES - READ FIRST
+
+🚨 **ABSOLUTELY NO CUSTOM UI COMPONENTS** 🚨
+
+1. **ONLY shadcn/ui components** are allowed for ALL UI elements in this project
+2. **NEVER create custom buttons, inputs, cards, or any UI elements** from scratch
+3. **NEVER use plain HTML elements** like `<button>`, `<input>`, `<div>` for UI components
+4. **ALWAYS use shadcn/ui equivalents** - if a component doesn't exist, install it first
+5. **Custom styling is allowed** using Tailwind classes on shadcn/ui components, but the base component must be from shadcn/ui
+6. This project is in dark mode so make sure there are no dark colored text on dark backgrounds (and vice versa)
+7. Don't use green colored buttons only use white on the dark and dark on the white
+
 ## Configuration
 
 shadcn/ui is configured with:
@@ -46,7 +58,52 @@ Common components to add as needed:
 3. **Use the cn() utility** from `@/lib/utils` for className merging
 4. **Install components before using them** - check if the component exists in `src/components/ui/` first
 
-## Example
+## Clerk Integration with shadcn/ui
+
+**REQUIRED:** All Clerk authentication UI must use shadcn/ui components:
+
+### Sign In / Sign Up Buttons
+
+- **NEVER use Clerk's default buttons** (`<SignInButton>`, `<SignUpButton>`)
+- **ALWAYS use shadcn/ui Button component** to trigger Clerk modals
+- Use Clerk's modal mode for authentication flows
+
+### Implementation Pattern
+
+```tsx
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { SignIn, SignUp } from "@clerk/nextjs"
+
+// ✅ CORRECT - shadcn/ui Button with Clerk modal
+export function SignInButton() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button>Sign In</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <SignIn />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ❌ WRONG - Using Clerk's default button
+import { SignInButton } from "@clerk/nextjs"
+<SignInButton /> // Don't do this!
+```
+
+### Required Components for Clerk
+
+Install these shadcn/ui components for Clerk integration:
+- `button` - For sign in/sign up triggers
+- `dialog` - For modal authentication flows
+- `avatar` - For user profile display (optional)
+
+## Examples
+
+### Basic shadcn/ui Usage
 
 ```tsx
 import { Button } from "@/components/ui/button"
@@ -60,3 +117,35 @@ export function MyComponent() {
   )
 }
 ```
+
+### What NOT to Do
+
+```tsx
+// ❌ WRONG - Custom button component
+export function CustomButton() {
+  return <button className="...">Click me</button>
+}
+
+// ❌ WRONG - Plain HTML elements
+<button>Submit</button>
+<input type="text" />
+<div className="card">...</div>
+
+// ✅ CORRECT - Use shadcn/ui
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card } from "@/components/ui/card"
+
+<Button>Submit</Button>
+<Input type="text" />
+<Card>...</Card>
+```
+
+## Enforcement
+
+If you find yourself about to create a custom UI component, STOP and:
+1. Check if shadcn/ui has an equivalent component
+2. Install the component if it's not already available
+3. Use the shadcn/ui component with custom Tailwind classes if needed
+
+**There are NO exceptions to this rule.**
