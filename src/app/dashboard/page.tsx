@@ -2,7 +2,6 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { getUserDecks } from "@/db/queries/deck-queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { CreateDeckDialog } from "./components/CreateDeckDialog";
 
@@ -13,7 +12,7 @@ export default async function DashboardPage() {
     redirect("/");
   }
 
-  // Fetch user's decks from database
+  // Fetch user's decks
   const userDecks = await getUserDecks(userId);
   
   // Check if user has unlimited decks feature
@@ -47,7 +46,7 @@ export default async function DashboardPage() {
                     <p className="text-sm text-zinc-300">
                       {isAtDeckLimit ? (
                         <>
-                          You've reached the limit of 3 decks on the free plan.{" "}
+                          You&apos;ve reached the limit of 3 decks on the free plan.{" "}
                           <Link href="/pricing" className="text-zinc-100 hover:underline font-medium">
                             Upgrade to Pro
                           </Link>
@@ -55,7 +54,7 @@ export default async function DashboardPage() {
                         </>
                       ) : (
                         <>
-                          You're using {userDecks.length} of 3 free decks.{" "}
+                          You&apos;re using {userDecks.length} of 3 free decks.{" "}
                           <Link href="/pricing" className="text-zinc-100 hover:underline font-medium">
                             Upgrade to Pro
                           </Link>

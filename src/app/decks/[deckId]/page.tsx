@@ -11,13 +11,17 @@ import { EditDeckDialog } from "./components/EditDeckDialog";
 import { DeleteDeckDialog } from "./components/DeleteDeckDialog";
 import { EditCardDialog } from "./components/EditCardDialog";
 import { DeleteCardDialog } from "./components/DeleteCardDialog";
+import { GenerateCardsDialog } from "./components/GenerateCardsDialog";
 
 export default async function DeckPage({ params }: { params: Promise<{ deckId: string }> }) {
-  const { userId } = await auth();
+  const { userId, has } = await auth();
 
   if (!userId) {
     redirect("/");
   }
+
+  // Check if user has AI feature
+  const hasAIFeature = has({ feature: 'ai_flashcard_generation' });
 
   const { deckId: deckIdParam } = await params;
   const deckId = parseInt(deckIdParam);
@@ -33,8 +37,8 @@ export default async function DeckPage({ params }: { params: Promise<{ deckId: s
     notFound();
   }
 
-  // Fetch cards for this deck
-  const cards = await getCardsByDeckId(deckId);
+  // Fetch cards for this deck (ownership already verified in query)
+  const cards = await getCardsByDeckId(deckId, userId);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -104,7 +108,16 @@ export default async function DeckPage({ params }: { params: Promise<{ deckId: s
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-semibold">Cards</h2>
-            <AddCardDialog deckId={deckId} />
+            <div className="flex gap-2">
+              <GenerateCardsDialog
+                deckId={deckId}
+                deckName={deck.name}
+                deckDescription={deck.description}
+                hasAIFeature={hasAIFeature}
+                variant="outline"
+              />
+              <AddCardDialog deckId={deckId} />
+            </div>
           </div>
 
           {cards.length > 0 ? (
@@ -155,7 +168,15 @@ export default async function DeckPage({ params }: { params: Promise<{ deckId: s
                 <p className="text-muted-foreground text-center mb-4">
                   No cards yet. Add your first card to start studying!
                 </p>
-                <AddCardDialog deckId={deckId} />
+                <div className="flex gap-2">
+                  <GenerateCardsDialog
+                    deckId={deckId}
+                    deckName={deck.name}
+                    deckDescription={deck.description}
+                    hasAIFeature={hasAIFeature}
+                  />
+                  <AddCardDialog deckId={deckId} />
+                </div>
               </CardContent>
             </Card>
           )}

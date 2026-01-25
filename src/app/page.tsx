@@ -31,7 +31,7 @@ export default async function Home() {
               <DialogTrigger asChild>
                 <Button variant="outline" size="lg">Sign In</Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="p-0 bg-transparent border-0 max-w-md">
                 <DialogTitle className="sr-only">Sign In</DialogTitle>
                 <SignIn routing="hash" forceRedirectUrl="/dashboard" />
               </DialogContent>
@@ -40,7 +40,7 @@ export default async function Home() {
               <DialogTrigger asChild>
                 <Button size="lg">Sign Up</Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="p-0 bg-transparent border-0 max-w-md">
                 <DialogTitle className="sr-only">Sign Up</DialogTitle>
                 <SignUp routing="hash" forceRedirectUrl="/dashboard" />
               </DialogContent>

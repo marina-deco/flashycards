@@ -25,8 +25,8 @@ export default async function StudyPage({ params }: { params: Promise<{ deckId: 
     notFound();
   }
 
-  // Fetch cards for this deck
-  const cards = await getCardsByDeckId(deckId);
+  // Fetch cards for this deck (ownership already verified in query)
+  const cards = await getCardsByDeckId(deckId, userId);
 
   if (cards.length === 0) {
     redirect(`/decks/${deckId}`);

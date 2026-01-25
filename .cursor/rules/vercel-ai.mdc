@@ -1,0 +1,170 @@
+---
+alwaysApply: true
+---
+
+# Vercel AI Library Usage
+
+This project uses the **Vercel AI SDK** (npm package: `ai`) for AI-powered features.
+
+## Configuration
+
+- AI Provider: Google Gemini
+- Model: `gemini-flash-latest` (recommended current model)
+- Primary Use Case: AI flashcard generation
+
+## Core Pattern: Generating Structured Data
+
+The Vercel AI SDK provides `generateObject` for generating structured, type-safe data from AI models.
+
+### Installation
+
+```bash
+npm install ai
+```
+
+### Required Imports
+
+```typescript
+import { generateObject } from 'ai'
+import { google } from '@ai-sdk/google'
+import { z } from 'zod'
+```
+
+## Flashcard Generation Pattern
+
+Use this pattern when implementing AI flashcard generation features:
+
+```typescript
+import { generateObject } from 'ai'
+import { z } from 'zod'
+
+// Define the schema for flashcards
+const flashcardSchema = z.object({
+  cards: z.array(
+    z.object({
+      front: z.string().describe('The question or prompt on the front of the card'),
+      back: z.string().describe('The answer or explanation on the back of the card'),
+    })
+  ),
+})
+
+// Generate flashcards
+const { object } = await generateObject({
+ model: google('gemini-flash-latest'),
+ schema: flashcardSchema,
+ prompt: `Generate ${numberOfCards} flashcards about ${topic}. Make them educational and clear.`,
+})
+
+// Access the generated cards
+const flashcards = object.cards
+// Returns: [{ front: "...", back: "..." }, { front: "...", back: "..." }, ...]
+```
+
+## Usage Guidelines
+
+1. **Always use Zod schemas** - Define structured schemas for type safety
+2. **Use descriptive prompts** - Include the number of cards and the topic
+3. **Add descriptions to schema fields** - Help the AI understand what to generate
+4. **Specify the model** - Use `google/gemini-1.5-flash` or other Gemini variants
+5. **Handle errors** - Wrap in try-catch blocks for production code
+
+## Example: Complete Server Action
+
+```typescript
+"use server"
+
+import { generateObject } from 'ai'
+import { google } from '@ai-sdk/google'
+import { z } from 'zod'
+import { auth } from '@clerk/nextjs/server'
+
+const flashcardSchema = z.object({
+  cards: z.array(
+    z.object({
+      front: z.string().describe('The question or prompt'),
+      back: z.string().describe('The answer or explanation'),
+    })
+  ),
+})
+
+export async function generateFlashcardsAction(topic: string, count: number = 5) {
+  // Check authentication
+  const { userId, has } = await auth()
+  
+  if (!userId) {
+    throw new Error('Unauthorized')
+  }
+  
+  // Check if user has AI generation feature
+  const hasAIFeature = has({ feature: 'ai_flashcard_generation' })
+  
+  if (!hasAIFeature) {
+    throw new Error('AI flashcard generation requires a Pro plan')
+  }
+  
+   try {
+ // Generate flashcards with AI
+ const { object } = await generateObject({
+ model: google('gemini-flash-latest'),
+ schema: flashcardSchema,
+ prompt: `Generate ${count} educational flashcards about "${topic}". 
+ Make them clear, concise, and suitable for learning.
+ Cover key concepts and important details.`,
+ })
+ 
+ return object.cards
+ } catch (error) {
+ console.error('AI generation failed:', error)
+ throw new Error('Failed to generate flashcards')
+ }
+}
+```
+
+## Integration with Billing
+
+**IMPORTANT**: AI flashcard generation is a Pro feature. Always check for the `ai_flashcard_generation` feature before allowing AI generation:
+
+```typescript
+import { auth } from '@clerk/nextjs/server'
+
+const { has } = await auth()
+const hasAIFeature = has({ feature: 'ai_flashcard_generation' })
+
+if (!hasAIFeature) {
+  throw new Error('AI flashcard generation requires a Pro plan')
+}
+```
+
+## Environment Variables
+
+Ensure the Gemini API key is configured:
+
+```
+GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
+```
+
+## Best Practices
+
+1. **Validate input** - Always validate topic and count parameters
+2. **Set reasonable limits** - Limit the number of cards per generation (e.g., max 20)
+3. **Provide context** - Give the AI clear instructions in the prompt
+4. **Handle failures gracefully** - Provide fallback UI when generation fails
+5. **Check billing** - Always verify Pro plan access before generation
+6. **Use Server Actions** - Keep AI generation server-side only
+
+## What NOT to Do
+
+❌ Calling `generateObject` from Client Components
+❌ Exposing API keys on the client-side
+❌ Allowing unlimited generations without billing checks
+❌ Using unstructured prompts without schemas
+❌ Ignoring error handling
+
+## What TO Do
+
+✅ Use `generateObject` in Server Actions only
+✅ Define clear Zod schemas for output structure
+✅ Check for `ai_flashcard_generation` feature access
+✅ Provide descriptive prompts with context
+✅ Handle errors and provide user feedback
+✅ Set reasonable generation limits

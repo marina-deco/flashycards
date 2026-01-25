@@ -4,7 +4,9 @@ import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
-import { createCard, updateCard, deleteCard } from "@/db/queries/card-queries"
+import { generateObject } from "ai"
+import { google } from "@ai-sdk/google"
+import { createCard, updateCard, deleteCard, createCards } from "@/db/queries/card-queries"
 import { getDeckById, updateDeck, deleteDeck } from "@/db/queries/deck-queries"
 
 const createCardSchema = z.object({
@@ -25,16 +27,10 @@ export async function createCardAction(input: CreateCardInput) {
     throw new Error("Unauthorized")
   }
   
-  // 3. Verify deck ownership
-  const deck = await getDeckById(validatedData.deckId, userId)
-  if (!deck) {
-    throw new Error("Deck not found or unauthorized")
-  }
+  // 3. Create card (ownership verification now in query helper)
+  const newCard = await createCard(validatedData, userId)
   
-  // 4. Create card
-  const newCard = await createCard(validatedData)
-  
-  // 5. Revalidate cache
+  // 4. Revalidate cache
   revalidatePath(`/decks/${validatedData.deckId}`)
   
   return newCard
@@ -59,19 +55,18 @@ export async function updateCardAction(input: UpdateCardInput) {
     throw new Error("Unauthorized")
   }
   
-  // 3. Verify deck ownership
-  const deck = await getDeckById(validatedData.deckId, userId)
-  if (!deck) {
-    throw new Error("Deck not found or unauthorized")
-  }
+  // 3. Update card (ownership verification now in query helper)
+  const updatedCard = await updateCard(
+    validatedData.cardId, 
+    validatedData.deckId,
+    userId,
+    {
+      front: validatedData.front,
+      back: validatedData.back,
+    }
+  )
   
-  // 4. Update card
-  const updatedCard = await updateCard(validatedData.cardId, {
-    front: validatedData.front,
-    back: validatedData.back,
-  })
-  
-  // 5. Revalidate cache
+  // 4. Revalidate cache
   revalidatePath(`/decks/${validatedData.deckId}`)
   
   return updatedCard
@@ -129,16 +124,10 @@ export async function deleteCardAction(input: DeleteCardInput) {
     throw new Error("Unauthorized")
   }
   
-  // 3. Verify deck ownership
-  const deck = await getDeckById(validatedData.deckId, userId)
-  if (!deck) {
-    throw new Error("Deck not found or unauthorized")
-  }
+  // 3. Delete card (ownership verification now in query helper)
+  await deleteCard(validatedData.cardId, validatedData.deckId, userId)
   
-  // 4. Delete card
-  await deleteCard(validatedData.cardId)
-  
-  // 5. Revalidate cache
+  // 4. Revalidate cache
   revalidatePath(`/decks/${validatedData.deckId}`)
 }
 
@@ -172,4 +161,63 @@ export async function deleteDeckAction(input: DeleteDeckInput) {
   
   // 6. Redirect to dashboard
   redirect("/dashboard")
+}
+
+const generateCardsSchema = z.object({
+  deckId: z.number(),
+  deckName: z.string(),
+  deckDescription: z.string().min(1, "Description is required for AI generation"),
+})
+
+type GenerateCardsInput = z.infer<typeof generateCardsSchema>
+
+const flashcardSchema = z.object({
+  cards: z.array(
+    z.object({
+      front: z.string().describe("The question or prompt on the front of the card"),
+      back: z.string().describe("The answer or explanation on the back of the card"),
+    })
+  ),
+})
+
+export async function generateCardsWithAIAction(input: GenerateCardsInput) {
+  // 1. Validate input
+  const validatedData = generateCardsSchema.parse(input)
+
+  // 2. Check authentication
+  const { userId, has } = await auth()
+  if (!userId) {
+    throw new Error("Unauthorized")
+  }
+
+  // 3. Check for AI feature access
+  const hasAIFeature = has({ feature: 'ai_flashcard_generation' })
+  if (!hasAIFeature) {
+    throw new Error("AI flashcard generation requires a Pro plan")
+  }
+
+  // 4. Generate flashcards with AI
+  const { object } = await generateObject({
+    model: google("gemini-flash-latest"),
+    schema: flashcardSchema,
+    prompt: `Generate 20 educational flashcards about "${validatedData.deckName}".
+${validatedData.deckDescription ? `Context: ${validatedData.deckDescription}` : ""}
+Make them clear, concise, and suitable for learning.
+Cover key concepts and important details.
+Each card should have a question/prompt on the front and an answer/explanation on the back.`,
+  })
+
+  // 5. Insert cards into database (ownership verification now in query helper)
+  const cardsToInsert = object.cards.map((card) => ({
+    deckId: validatedData.deckId,
+    front: card.front,
+    back: card.back,
+  }))
+
+  const newCards = await createCards(cardsToInsert, userId)
+
+  // 6. Revalidate cache
+  revalidatePath(`/decks/${validatedData.deckId}`)
+
+  return newCards
 }

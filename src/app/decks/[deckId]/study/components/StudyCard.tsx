@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -33,23 +33,23 @@ export function StudyCard({ deckId, deckName, cards }: StudyCardProps) {
   const totalAnswered = correctCount + incorrectCount;
   const accuracy = totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) : 0;
 
-  const handleFlip = () => {
+  const handleFlip = useCallback(() => {
     setIsFlipped(!isFlipped);
-  };
+  }, [isFlipped]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (currentIndex < studyCards.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setIsFlipped(false);
     }
-  };
+  }, [currentIndex, studyCards.length]);
 
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
       setIsFlipped(false);
     }
-  };
+  }, [currentIndex]);
 
   const handleReset = () => {
     setCurrentIndex(0);
@@ -117,7 +117,7 @@ export function StudyCard({ deckId, deckName, cards }: StudyCardProps) {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [currentIndex, isFlipped, studyCards.length]); // Dependencies for the handlers
+  }, [currentIndex, isFlipped, studyCards.length, handleFlip, handleNext, handlePrevious]);
 
   return (
     <div className="container mx-auto px-4 py-8 min-h-screen">
