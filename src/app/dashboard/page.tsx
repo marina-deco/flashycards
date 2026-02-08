@@ -1,9 +1,19 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { getUserDecks } from "@/db/queries/deck-queries";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getUserDecksWithStats } from "@/db/queries/deck-queries";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
+import { Play } from "lucide-react";
 import { CreateDeckDialog } from "./components/CreateDeckDialog";
+import { PlanLearningDialog } from "./components/PlanLearningDialog";
 
 export default async function DashboardPage() {
   const { userId, has } = await auth();
@@ -12,11 +22,12 @@ export default async function DashboardPage() {
     redirect("/");
   }
 
-  // Fetch user's decks
-  const userDecks = await getUserDecks(userId);
-  
-  // Check if user has unlimited decks feature
-  const hasUnlimitedDecks = has({ feature: 'unlimited_decks' });
+  // Fetch user's decks with stats
+  const userDecks = await getUserDecksWithStats(userId);
+
+  // Check features
+  const hasUnlimitedDecks = has({ feature: "unlimited_decks" });
+  const hasAIFeature = has({ feature: "ai_flashcard_generation" });
   const isAtDeckLimit = !hasUnlimitedDecks && userDecks.length >= 3;
 
   return (
@@ -46,19 +57,26 @@ export default async function DashboardPage() {
                     <p className="text-sm text-zinc-300">
                       {isAtDeckLimit ? (
                         <>
-                          You&apos;ve reached the limit of 3 decks on the free plan.{" "}
-                          <Link href="/pricing" className="text-zinc-100 hover:underline font-medium">
+                          You&apos;ve reached the limit of 3 decks on the free
+                          plan.{" "}
+                          <Link
+                            href="/pricing"
+                            className="text-zinc-100 hover:underline font-medium"
+                          >
                             Upgrade to Pro
-                          </Link>
-                          {" "}to create unlimited decks.
+                          </Link>{" "}
+                          to create unlimited decks.
                         </>
                       ) : (
                         <>
                           You&apos;re using {userDecks.length} of 3 free decks.{" "}
-                          <Link href="/pricing" className="text-zinc-100 hover:underline font-medium">
+                          <Link
+                            href="/pricing"
+                            className="text-zinc-100 hover:underline font-medium"
+                          >
                             Upgrade to Pro
-                          </Link>
-                          {" "}for unlimited decks and AI flashcard generation.
+                          </Link>{" "}
+                          for unlimited decks and AI flashcard generation.
                         </>
                       )}
                     </p>
@@ -74,15 +92,65 @@ export default async function DashboardPage() {
                 <Link key={deck.id} href={`/decks/${deck.id}`} className="block">
                   <Card className="flex flex-col bg-zinc-900/50 w-full cursor-pointer transition-all hover:bg-zinc-800/50 hover:shadow-lg h-full">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base leading-tight mb-3">{deck.name}</CardTitle>
+                      <CardTitle className="text-base leading-tight mb-1">
+                        {deck.name}
+                      </CardTitle>
                       <CardDescription className="text-xs leading-relaxed">
                         {deck.description || "No description"}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="flex-1 pt-4 pb-4">
-                      <span className="text-xs text-muted-foreground">
-                        Updated: {new Date(deck.updatedAt).toLocaleDateString()}
-                      </span>
+                    <CardContent className="flex-1 pt-2 pb-4 space-y-3">
+                      {/* Card count + last studied */}
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{deck.cardCount} cards</span>
+                        <span>
+                          {deck.lastStudied
+                            ? `Studied ${new Date(deck.lastStudied).toLocaleDateString()}`
+                            : "Not studied yet"}
+                        </span>
+                      </div>
+
+                      {/* Progress bar */}
+                      {deck.lastAccuracy !== null && (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">
+                              Last accuracy
+                            </span>
+                            <span className="font-medium">
+                              {deck.lastAccuracy}%
+                            </span>
+                          </div>
+                          <Progress
+                            value={deck.lastAccuracy}
+                            className="h-1.5"
+                          />
+                        </div>
+                      )}
+
+                      {/* Resume study button */}
+                      {deck.cardCount > 0 && (
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="w-full mt-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Link href={`/decks/${deck.id}/study`}>
+                            <Play className="h-3 w-3 mr-1" />
+                            {deck.lastStudied ? "Resume Study" : "Start Study"}
+                          </Link>
+                        </Button>
+                      )}
+
+                      {/* Plan Learning (AI, Pro only) */}
+                      {hasAIFeature && (
+                        <PlanLearningDialog
+                          deckName={deck.name}
+                          deckDescription={deck.description}
+                        />
+                      )}
                     </CardContent>
                   </Card>
                 </Link>

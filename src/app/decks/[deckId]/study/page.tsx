@@ -5,11 +5,13 @@ import { getCardsByDeckId } from "@/db/queries/card-queries";
 import { StudyCard } from "./components/StudyCard";
 
 export default async function StudyPage({ params }: { params: Promise<{ deckId: string }> }) {
-  const { userId } = await auth();
+  const { userId, has } = await auth();
 
   if (!userId) {
     redirect("/");
   }
+
+  const hasAIFeature = has({ feature: 'ai_flashcard_generation' });
 
   const { deckId: deckIdParam } = await params;
   const deckId = parseInt(deckIdParam);
@@ -37,6 +39,7 @@ export default async function StudyPage({ params }: { params: Promise<{ deckId: 
       deckId={deckId}
       deckName={deck.name}
       cards={cards}
+      hasAIFeature={hasAIFeature}
     />
   );
 }

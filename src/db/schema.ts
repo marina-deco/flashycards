@@ -1,4 +1,4 @@
-import { integer, pgTable, varchar, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { integer, pgTable, varchar, text, timestamp, boolean, bigint } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: varchar({ length: 255 }).primaryKey(), // Clerk userId
@@ -26,4 +26,23 @@ export const cards = pgTable("cards", {
   back: text().notNull(),
   createdAt: timestamp().notNull().defaultNow(),
   updatedAt: timestamp().notNull().defaultNow(),
+});
+
+export const studySessions = pgTable("study_sessions", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar({ length: 255 }).notNull(),
+  deckId: integer().notNull().references(() => decks.id, { onDelete: "cascade" }),
+  totalCards: integer().notNull().default(0),
+  correctCount: integer().notNull().default(0),
+  incorrectCount: integer().notNull().default(0),
+  startedAt: timestamp().notNull().defaultNow(),
+  completedAt: timestamp(),
+});
+
+export const cardResults = pgTable("card_results", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  sessionId: integer().notNull().references(() => studySessions.id, { onDelete: "cascade" }),
+  cardId: integer().notNull().references(() => cards.id, { onDelete: "cascade" }),
+  isCorrect: boolean().notNull(),
+  timeSpentMs: bigint({ mode: "number" }),
 });

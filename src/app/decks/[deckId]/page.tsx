@@ -2,18 +2,25 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import { getDeckById } from "@/db/queries/deck-queries";
 import { getCardsByDeckId } from "@/db/queries/card-queries";
+import { getSessionsByDeckId } from "@/db/queries/session-queries";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
-import { ArrowLeft, Play } from "lucide-react";
+import { ArrowLeft, Play, History } from "lucide-react";
 import { AddCardDialog } from "./components/AddCardDialog";
 import { EditDeckDialog } from "./components/EditDeckDialog";
 import { DeleteDeckDialog } from "./components/DeleteDeckDialog";
 import { EditCardDialog } from "./components/EditCardDialog";
 import { DeleteCardDialog } from "./components/DeleteCardDialog";
 import { GenerateCardsDialog } from "./components/GenerateCardsDialog";
+import { TopicOverviewDialog } from "./components/TopicOverviewDialog";
 
-export default async function DeckPage({ params }: { params: Promise<{ deckId: string }> }) {
+export default async function DeckPage({
+  params,
+}: {
+  params: Promise<{ deckId: string }>;
+}) {
   const { userId, has } = await auth();
 
   if (!userId) {
@@ -21,11 +28,11 @@ export default async function DeckPage({ params }: { params: Promise<{ deckId: s
   }
 
   // Check if user has AI feature
-  const hasAIFeature = has({ feature: 'ai_flashcard_generation' });
+  const hasAIFeature = has({ feature: "ai_flashcard_generation" });
 
   const { deckId: deckIdParam } = await params;
   const deckId = parseInt(deckIdParam);
-  
+
   if (isNaN(deckId)) {
     notFound();
   }
@@ -37,8 +44,11 @@ export default async function DeckPage({ params }: { params: Promise<{ deckId: s
     notFound();
   }
 
-  // Fetch cards for this deck (ownership already verified in query)
-  const cards = await getCardsByDeckId(deckId, userId);
+  // Fetch cards and study history in parallel
+  const [cards, recentSessions] = await Promise.all([
+    getCardsByDeckId(deckId, userId),
+    getSessionsByDeckId(deckId, userId, 5),
+  ]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -60,19 +70,16 @@ export default async function DeckPage({ params }: { params: Promise<{ deckId: s
                 <div className="flex-1">
                   <h1 className="text-3xl font-bold mb-2">{deck.name}</h1>
                   <p className="text-muted-foreground">
-                    {deck.description || "Learn essential Spanish vocabulary with English translations"}
+                    {deck.description || "No description"}
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <EditDeckDialog 
+                  <EditDeckDialog
                     deckId={deckId}
                     currentName={deck.name}
                     currentDescription={deck.description}
                   />
-                  <DeleteDeckDialog 
-                    deckId={deckId}
-                    deckName={deck.name}
-                  />
+                  <DeleteDeckDialog deckId={deckId} deckName={deck.name} />
                 </div>
               </div>
 
@@ -87,11 +94,11 @@ export default async function DeckPage({ params }: { params: Promise<{ deckId: s
               </div>
 
               {/* Action Buttons */}
-              <div>
-                <Button 
-                  asChild 
-                  size="lg" 
-                  className="w-full bg-white hover:bg-zinc-100 text-zinc-900"
+              <div className="flex gap-3">
+                <Button
+                  asChild
+                  size="lg"
+                  className="flex-1 bg-white hover:bg-zinc-100 text-zinc-900"
                   disabled={cards.length === 0}
                 >
                   <Link href={`/decks/${deckId}/study`}>
@@ -99,10 +106,65 @@ export default async function DeckPage({ params }: { params: Promise<{ deckId: s
                     Start Study Session
                   </Link>
                 </Button>
+                {hasAIFeature && (
+                  <TopicOverviewDialog
+                    deckName={deck.name}
+                    deckDescription={deck.description}
+                  />
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Study History Section */}
+        {recentSessions.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <History className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-lg font-semibold">Recent Study Sessions</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {recentSessions.map((session) => {
+                const total =
+                  session.correctCount + session.incorrectCount;
+                const sessionAccuracy =
+                  total > 0
+                    ? Math.round((session.correctCount / total) * 100)
+                    : 0;
+                return (
+                  <Card
+                    key={session.id}
+                    className="bg-zinc-900/50 border-zinc-800"
+                  >
+                    <CardContent className="p-4 space-y-2">
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(session.startedAt).toLocaleDateString(
+                          undefined,
+                          {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-2xl font-bold">
+                          {sessionAccuracy}%
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {session.correctCount}/{total}
+                        </span>
+                      </div>
+                      <Progress value={sessionAccuracy} className="h-1.5" />
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Cards Section */}
         <div className="flex flex-col gap-4">
@@ -123,7 +185,10 @@ export default async function DeckPage({ params }: { params: Promise<{ deckId: s
           {cards.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {cards.map((card) => (
-                <Card key={card.id} className="bg-zinc-900/50 border-zinc-800">
+                <Card
+                  key={card.id}
+                  className="bg-zinc-900/50 border-zinc-800"
+                >
                   <CardContent className="p-4 space-y-4">
                     <div className="space-y-3">
                       <div className="space-y-2">
@@ -132,7 +197,7 @@ export default async function DeckPage({ params }: { params: Promise<{ deckId: s
                           {card.front}
                         </div>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <div className="text-sm font-medium">Back</div>
                         <div className="bg-zinc-800/50 rounded-md p-3 min-h-[60px]">
